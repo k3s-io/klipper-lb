@@ -16,5 +16,10 @@ if echo $TAG | grep -q dirty; then
 fi
 
 IMAGE=${REPO}/klipper-lb:${TAG}
-docker build -f package/Dockerfile -t ${IMAGE} .
+DOCKERFILE=package/Dockerfile
+if [ -e ${DOCKERFILE}.${ARCH} ]; then
+    DOCKERFILE=${DOCKERFILE}.${ARCH}
+fi
+
+docker build -f ${DOCKERFILE} -t ${IMAGE} .
 echo Built ${IMAGE}

@@ -1,0 +1,4 @@
+FROM alpine@sha256:6d94d2806ccbe3b6036b2cd55c61260f474692b6987c21386e32ef54bc40200a
+RUN apk add -U --no-cache iptables
+COPY entry /usr/bin/
+CMD ["entry"]
