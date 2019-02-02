@@ -1,0 +1,20 @@
+#!/bin/bash
+set -e
+
+source $(dirname $0)/version
+
+ARCH=${ARCH:-"amd64"}
+SUFFIX="-${ARCH}"
+
+cd $(dirname $0)/..
+
+TAG=${TAG:-${VERSION}${SUFFIX}}
+REPO=${REPO:-rancher}
+
+if echo $TAG | grep -q dirty; then
+    TAG=dev
+fi
+
+IMAGE=${REPO}/klipper-lb:${TAG}
+docker build -f package/Dockerfile -t ${IMAGE} .
+echo Built ${IMAGE}

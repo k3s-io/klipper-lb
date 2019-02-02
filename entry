@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e -x
+
+trap exit TERM INT
+
+if [ `cat /proc/sys/net/ipv4/ip_forward` != 1 ]; then
+    exit 1
+fi
+
+iptables -t nat -I PREROUTING ! -s ${DEST_IP}/32 -p ${DEST_PROTO} --dport ${SRC_PORT} -j DNAT --to ${DEST_IP}:${DEST_PORT}
+iptables -t nat -I POSTROUTING -d ${DEST_IP}/32 -p ${DEST_PROTO} -j MASQUERADE
+
+if [ ! -e /pause ]; then
+    mkfifo /pause
+fi
+</pause
