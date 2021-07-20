@@ -1,4 +1,4 @@
-FROM alpine:3.8
+FROM alpine
 RUN apk add -U --no-cache iptables
 COPY entry /usr/bin/
 CMD ["entry"]
