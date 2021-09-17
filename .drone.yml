@@ -105,7 +105,7 @@ steps:
 - name: docker-publish
   image: plugins/docker
   settings:
-    dockerfile: package/Dockerfile.arm
+    dockerfile: package/Dockerfile
     password:
       from_secret: docker_password
     repo: "rancher/klipper-lb"
