@@ -1,0 +1,5 @@
+# Alpine has a different image for arm https://github.com/docker-library/repo-info/blob/master/repos/alpine/remote/3.12.8.md
+FROM alpine@sha256:a296b4c6f6ee2b88f095b61e95c7ef4f51ba25598835b4978c9256d8c8ace48a
+RUN apk add -U --no-cache iptables
+COPY entry /usr/bin/
+CMD ["entry"]
