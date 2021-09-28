@@ -4,6 +4,7 @@ set -e -x
 trap exit TERM INT
 
 if [ `cat /proc/sys/net/ipv4/ip_forward` != 1 ]; then
+    echo "error: ip forwarding is off. Is it enabled in your CNI and host configuration?"
     exit 1
 fi
 
