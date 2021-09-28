@@ -3,8 +3,6 @@ set -e -x
 
 trap exit TERM INT
 
-echo 1 > /proc/sys/net/ipv4/ip_forward || true
-
 if [ `cat /proc/sys/net/ipv4/ip_forward` != 1 ]; then
     exit 1
 fi
