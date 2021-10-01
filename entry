@@ -3,7 +3,7 @@ set -e -x
 
 trap exit TERM INT
 
-for dest_ip in ${DEST_IPs}
+for dest_ip in ${DEST_IPS}
 do
     if echo ${dest_ip} | grep -Eq ":" 
     then
