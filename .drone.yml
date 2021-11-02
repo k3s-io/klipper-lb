@@ -89,7 +89,7 @@ type: docker
 
 platform:
   os: linux
-  arch: arm64
+  arch: arm
 
 steps:
 - name: build
@@ -105,7 +105,6 @@ steps:
 - name: docker-publish
   image: plugins/docker
   settings:
-    dockerfile: package/Dockerfile.arm
     password:
       from_secret: docker_password
     repo: "rancher/klipper-lb"
