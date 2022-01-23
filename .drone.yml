@@ -84,6 +84,55 @@ volumes:
 
 ---
 kind: pipeline
+name: s390x
+type: docker
+
+platform:
+  os: linux
+  arch: amd64
+
+# Hack needed for s390x: https://gist.github.com/colstrom/c2f359f72658aaabb44150ac20b16d7c#gistcomment-3858388
+node:
+  arch: s390x
+
+steps:
+- name: build
+  image: rancher/dapper:v0.5.8
+  commands:
+  - dapper ci
+  volumes:
+  - name: docker
+    path: /var/run/docker.sock
+
+- name: docker-publish
+  image: plugins/docker
+  volumes:
+  - name: docker
+    path: /var/run/docker.sock
+  settings:
+    dockerfile: package/Dockerfile
+    password:
+      from_secret: docker_password
+    repo: "rancher/klipper-lb"
+    tag: "${DRONE_TAG}-s390x"
+    username:
+      from_secret: docker_username
+  when:
+    instance:
+    - drone-publish.k3s.io
+    ref:
+    - refs/head/master
+    - refs/tags/*
+    event:
+    - tag
+
+volumes:
+- name: docker
+  host:
+    path: /var/run/docker.sock
+
+---
+kind: pipeline
 name: arm
 type: docker
 
@@ -147,6 +196,7 @@ steps:
       - linux/amd64
       - linux/arm64
       - linux/arm
+      - linux/s390x
     target: "rancher/klipper-lb:${DRONE_TAG}"
     template: "rancher/klipper-lb:${DRONE_TAG}-ARCH"
   when:
@@ -162,3 +212,4 @@ depends_on:
 - amd64
 - arm64
 - arm
+- s390x
