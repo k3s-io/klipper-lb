@@ -98,7 +98,6 @@ node:
 steps:
 - name: build
   image: rancher/dapper:v0.5.8
-  failure: ignore
   commands:
   - dapper ci
   volumes:
@@ -107,7 +106,6 @@ steps:
 
 - name: docker-publish
   image: plugins/docker
-  failure: ignore
   volumes:
   - name: docker
     path: /var/run/docker.sock
@@ -199,7 +197,6 @@ steps:
       - linux/arm64
       - linux/arm
       - linux/s390x
-    ignore_missing: true
     target: "rancher/klipper-lb:${DRONE_TAG}"
     template: "rancher/klipper-lb:${DRONE_TAG}-ARCH"
   when:
