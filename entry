@@ -3,6 +3,21 @@ set -e -x
 
 trap exit TERM INT
 
+update_symlinks_for_nft ()
+(
+    cd /sbin
+    find . -type l | 
+        while IFS= read -r f; do 
+            filename="$(basename "$f")"
+            linked_to="$(basename "$(readlink "$filename")")"
+            if [ "$linked_to" = "xtables-legacy-multi" ]; then
+                ln -sf "xtables-nft-multi" "$filename"
+            fi
+        done
+)
+
+test -d /sys/module/iptable_nat || update_symlinks_for_nft
+
 for dest_ip in ${DEST_IPS}
 do
     if echo ${dest_ip} | grep -Eq ":" 
