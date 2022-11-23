@@ -105,7 +105,7 @@ steps:
     path: /var/run/docker.sock
 
 - name: docker-publish
-  image: plugins/docker
+  image: rancher/drone-images:docker-s390x
   volumes:
   - name: docker
     path: /var/run/docker.sock
@@ -117,6 +117,8 @@ steps:
     tag: "${DRONE_TAG}-s390x"
     username:
       from_secret: docker_username
+    build_args:
+    - ARCH=s390x
   when:
     instance:
     - drone-publish.k3s.io
