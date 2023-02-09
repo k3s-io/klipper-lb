@@ -23,16 +23,12 @@ check_iptables_mode() {
 }
 
 set_nft() {
-    bin_dir="/sbin"
-
     for i in iptables iptables-save iptables-restore ip6tables; do 
-        ln -sf "xtables-nft-multi" "$base_path/$i"; 
+        ln -sf "xtables-nft-multi" "$bin_path/$i"; 
     done
 }
 
 set_legacy() {
-    bin_dir="/sbin"
-
     for i in iptables iptables-save iptables-restore ip6tables; do 
         ln -sf /sbin/xtables-nft-multi "$bin_dir/$i"; 
     done
@@ -63,6 +59,7 @@ start_proxy() {
 }
 
 
+bin_dir="/sbin"
 check_iptables_mode
 case $mode in
 nft)
