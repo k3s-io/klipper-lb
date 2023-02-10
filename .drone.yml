@@ -98,7 +98,6 @@ node:
 steps:
 - name: build
   image: rancher/dapper:v0.5.8
-  failure: ignore
   commands:
   - dapper ci
   volumes:
@@ -106,8 +105,7 @@ steps:
     path: /var/run/docker.sock
 
 - name: docker-publish
-  image: plugins/docker
-  failure: ignore
+  image: rancher/drone-images:docker-s390x
   volumes:
   - name: docker
     path: /var/run/docker.sock
@@ -119,6 +117,8 @@ steps:
     tag: "${DRONE_TAG}-s390x"
     username:
       from_secret: docker_username
+    build_args:
+    - ARCH=s390x
   when:
     instance:
     - drone-publish.k3s.io
@@ -199,7 +199,6 @@ steps:
       - linux/arm64
       - linux/arm
       - linux/s390x
-    ignore_missing: true
     target: "rancher/klipper-lb:${DRONE_TAG}"
     template: "rancher/klipper-lb:${DRONE_TAG}-ARCH"
   when:
