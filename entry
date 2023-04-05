@@ -16,12 +16,14 @@ fatal()
 }
 
 check_iptables_mode() {
+    set +e
     lsmod | grep "nf_tables" 2> /dev/null
     if [ $? = 0 ]; then
         mode=nft
     else 
         mode=legacy
     fi
+    set -e
 }
 
 set_nft() {
