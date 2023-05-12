@@ -41,9 +41,9 @@ set_legacy() {
 start_proxy() {
     for src_range in ${SRC_RANGES}; do
     if echo ${src_range} | grep -Eq ":"; then
-        ip6tables -t filter -I FORWARD -s ${src_range} -p ${DEST_PROTO} --dport ${SRC_PORT} -j ACCEPT
+        ip6tables -t filter -I FORWARD -s ${src_range} -p ${DEST_PROTO} --dport ${DEST_PORT} -j ACCEPT
     else
-        iptables -t filter -I FORWARD -s ${src_range} -p ${DEST_PROTO} --dport ${SRC_PORT} -j ACCEPT
+        iptables -t filter -I FORWARD -s ${src_range} -p ${DEST_PROTO} --dport ${DEST_PORT} -j ACCEPT
     fi
     done
 
