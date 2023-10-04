@@ -27,37 +27,38 @@ check_iptables_mode() {
 }
 
 set_nft() {
-    for i in iptables iptables-save iptables-restore ip6tables; do 
+    for i in iptables iptables-save iptables-restore ip6tables; do
         ln -sf /sbin/xtables-nft-multi "$BIN_DIR/$i";
     done
 }
 
 set_legacy() {
-    for i in iptables iptables-save iptables-restore ip6tables; do 
+    for i in iptables iptables-save iptables-restore ip6tables; do
         ln -sf /sbin/xtables-legacy-multi "$BIN_DIR/$i";
     done
 }
 
 start_proxy() {
+    wait_seconds="${WAIT_SECONDS:-0}"
     for src_range in ${SRC_RANGES}; do
     if echo ${src_range} | grep -Eq ":"; then
-        ip6tables -t filter -I FORWARD -s ${src_range} -p ${DEST_PROTO} --dport ${DEST_PORT} -j ACCEPT
+        ip6tables -w ${wait_seconds} -t filter -I FORWARD -s ${src_range} -p ${DEST_PROTO} --dport ${DEST_PORT} -j ACCEPT
     else
-        iptables -t filter -I FORWARD -s ${src_range} -p ${DEST_PROTO} --dport ${DEST_PORT} -j ACCEPT
+        iptables -w ${wait_seconds} -t filter -I FORWARD -s ${src_range} -p ${DEST_PROTO} --dport ${DEST_PORT} -j ACCEPT
     fi
     done
 
     for dest_ip in ${DEST_IPS}; do
         if echo ${dest_ip} | grep -Eq ":"; then
             [ $(cat /proc/sys/net/ipv6/conf/all/forwarding) == 1 ] || exit 1
-            ip6tables -t filter -A FORWARD -d ${dest_ip}/128 -p ${DEST_PROTO} --dport ${DEST_PORT} -j DROP
-            ip6tables -t nat -I PREROUTING -p ${DEST_PROTO} --dport ${SRC_PORT} -j DNAT --to [${dest_ip}]:${DEST_PORT}
-            ip6tables -t nat -I POSTROUTING -d ${dest_ip}/128 -p ${DEST_PROTO} -j MASQUERADE
+            ip6tables -w ${wait_seconds} -t filter -A FORWARD -d ${dest_ip}/128 -p ${DEST_PROTO} --dport ${DEST_PORT} -j DROP
+            ip6tables -w ${wait_seconds}-t nat -I PREROUTING -p ${DEST_PROTO} --dport ${SRC_PORT} -j DNAT --to [${dest_ip}]:${DEST_PORT}
+            ip6tables -w ${wait_seconds}-t nat -I POSTROUTING -d ${dest_ip}/128 -p ${DEST_PROTO} -j MASQUERADE
         else
             [ $(cat /proc/sys/net/ipv4/ip_forward) == 1 ] || exit 1
-            iptables -t filter -A FORWARD -d ${dest_ip}/32 -p ${DEST_PROTO} --dport ${DEST_PORT} -j DROP
-            iptables -t nat -I PREROUTING -p ${DEST_PROTO} --dport ${SRC_PORT} -j DNAT --to ${dest_ip}:${DEST_PORT}
-            iptables -t nat -I POSTROUTING -d ${dest_ip}/32 -p ${DEST_PROTO} -j MASQUERADE
+            iptables -w ${wait_seconds} -t filter -A FORWARD -d ${dest_ip}/32 -p ${DEST_PROTO} --dport ${DEST_PORT} -j DROP
+            iptables -w ${wait_seconds} -t nat -I PREROUTING -p ${DEST_PROTO} --dport ${SRC_PORT} -j DNAT --to ${dest_ip}:${DEST_PORT}
+            iptables -w ${wait_seconds} -t nat -I POSTROUTING -d ${dest_ip}/32 -p ${DEST_PROTO} -j MASQUERADE
         fi
     done
 }
