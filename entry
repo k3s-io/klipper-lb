@@ -5,25 +5,42 @@ trap exit TERM INT
 
 BIN_DIR="/sbin"
 
-info()
-{
+info() {
+    { set +x; } 2> /dev/null
     echo '[INFO] ' "$@"
+    set -x
 }
-fatal()
-{
+
+fatal() {
+    { set +x; } 2> /dev/null
     echo '[ERROR] ' "$@" >&2
+    set -x
     exit 1
 }
 
 check_iptables_mode() {
     set +e
-    lsmod | grep "nf_tables" 2> /dev/null
+    lsmod | grep -qF nf_tables 2> /dev/null
     if [ $? = 0 ]; then
         mode=nft
     else 
         mode=legacy
     fi
     set -e
+
+    case "$mode" in
+        nft)
+            info "nft mode detected"
+            set_nft
+            ;;
+        legacy)
+            info "legacy mode detected"
+            set_legacy
+            ;;
+        *)
+            fatal "invalid iptables mode"
+            ;;
+    esac
 }
 
 set_nft() {
@@ -39,15 +56,15 @@ set_legacy() {
 }
 
 start_proxy() {
-    for src_range in ${SRC_RANGES}; do
-    if echo ${src_range} | grep -Eq ":"; then
-        ip6tables -t filter -I FORWARD -s ${src_range} -p ${DEST_PROTO} --dport ${DEST_PORT} -j ACCEPT
-    else
-        iptables -t filter -I FORWARD -s ${src_range} -p ${DEST_PROTO} --dport ${DEST_PORT} -j ACCEPT
-    fi
+    for src_range in ${SRC_RANGES//,/ }; do
+        if echo ${src_range} | grep -Eq ":"; then
+            ip6tables -t filter -I FORWARD -s ${src_range} -p ${DEST_PROTO} --dport ${DEST_PORT} -j ACCEPT
+        else
+            iptables -t filter -I FORWARD -s ${src_range} -p ${DEST_PROTO} --dport ${DEST_PORT} -j ACCEPT
+        fi
     done
 
-    for dest_ip in ${DEST_IPS}; do
+    for dest_ip in ${DEST_IPS//,/ }; do
         if echo ${dest_ip} | grep -Eq ":"; then
             [ $(cat /proc/sys/net/ipv6/conf/all/forwarding) == 1 ] || exit 1
             ip6tables -t filter -A FORWARD -d ${dest_ip}/128 -p ${DEST_PROTO} --dport ${DEST_PORT} -j DROP
@@ -63,19 +80,6 @@ start_proxy() {
 }
 
 check_iptables_mode
-case $mode in
-nft)
-    info "nft mode detected"
-    set_nft
-    ;;
-legacy)
-    info "legacy mode detected"
-    set_legacy
-    ;;
-*)
-    fatal "invalid iptables mode"
-    ;;
-esac
 start_proxy
 
 if [ ! -e /pause ]; then
