@@ -1,4 +1,4 @@
-FROM alpine:3.19
+FROM alpine:3.20
 ARG BUILDDATE
 LABEL buildDate=$BUILDDATE
 RUN apk --no-cache upgrade && \
