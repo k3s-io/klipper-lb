@@ -9,9 +9,11 @@ platform:
 
 steps:
 - name: build
-  image: rancher/dapper:v0.5.0
+  image: docker:25.0-git
   commands:
-  - dapper ci
+  - apk add make
+  - git config --global --add safe.directory /drone/src
+  - make
   volumes:
   - name: docker
     path: /var/run/docker.sock
@@ -51,9 +53,11 @@ platform:
 
 steps:
 - name: build
-  image: rancher/dapper:v0.5.0
+  image: docker:25.0-git
   commands:
-  - dapper ci
+  - apk add make
+  - git config --global --add safe.directory /drone/src
+  - make
   volumes:
   - name: docker
     path: /var/run/docker.sock
@@ -93,11 +97,11 @@ platform:
 
 steps:
 - name: build
-  image: rancher/dapper:v0.5.0
-  environment:
-    DAPPER_HOST_ARCH: arm
+  image: docker:25.0-git
   commands:
-  - dapper ci
+  - apk add make
+  - git config --global --add safe.directory /drone/src
+  - make
   volumes:
   - name: docker
     path: /var/run/docker.sock
