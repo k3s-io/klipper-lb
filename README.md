@@ -1,7 +1,7 @@
 Klipper Service Load Balancer
 =================
 
-_NOTE: this repository has been recently (2020-11-18) moved out of the github.com/rancher org to github.com/k3s-io
+_NOTE: this repository was moved 2020-11-18 out of the github.com/rancher org to github.com/k3s-io
 supporting the [acceptance of K3s as a CNCF sandbox project](https://github.com/cncf/toc/pull/447)_.
 
 ---
@@ -17,7 +17,7 @@ will stay in pending.
 `make`
 
 ## License
-Copyright (c) 2019 [Rancher Labs, Inc.](http://rancher.com)
+Copyright (c) 2024 [K3s Authors](http://github.com/k3s-io)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
