@@ -10,6 +10,8 @@ platform:
 steps:
 - name: build
   image: docker:25.0-git
+  environment:
+    ARCH: "${DRONE_STAGE_ARCH}"
   commands:
   - apk add make
   - git config --global --add safe.directory /drone/src
@@ -54,6 +56,8 @@ platform:
 steps:
 - name: build
   image: docker:25.0-git
+  environment:
+    ARCH: "${DRONE_STAGE_ARCH}"
   commands:
   - apk add make
   - git config --global --add safe.directory /drone/src
@@ -98,6 +102,8 @@ platform:
 steps:
 - name: build
   image: docker:25.0-git
+  environment:
+    ARCH: "${DRONE_STAGE_ARCH}"
   commands:
   - apk add make
   - git config --global --add safe.directory /drone/src
