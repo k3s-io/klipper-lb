@@ -66,15 +66,17 @@ start_proxy() {
 
     for dest_ip in ${DEST_IPS//,/ }; do
         if echo ${dest_ip} | grep -Eq ":"; then
-            [ $(cat /proc/sys/net/ipv6/conf/all/forwarding) == 1 ] || exit 1
-            ip6tables -t filter -A FORWARD -d ${dest_ip}/128 -p ${DEST_PROTO} --dport ${DEST_PORT} -j DROP
-            ip6tables -t nat -I PREROUTING -p ${DEST_PROTO} --dport ${SRC_PORT} -j DNAT --to [${dest_ip}]:${DEST_PORT}
-            ip6tables -t nat -I POSTROUTING -d ${dest_ip}/128 -p ${DEST_PROTO} -j MASQUERADE
+            if [ $(cat /proc/sys/net/ipv6/conf/all/forwarding) == 1 ]; then
+                ip6tables -t filter -A FORWARD -d ${dest_ip}/128 -p ${DEST_PROTO} --dport ${DEST_PORT} -j DROP
+                ip6tables -t nat -I PREROUTING -p ${DEST_PROTO} --dport ${SRC_PORT} -j DNAT --to [${dest_ip}]:${DEST_PORT}
+                ip6tables -t nat -I POSTROUTING -d ${dest_ip}/128 -p ${DEST_PROTO} -j MASQUERADE
+            fi
         else
-            [ $(cat /proc/sys/net/ipv4/ip_forward) == 1 ] || exit 1
-            iptables -t filter -A FORWARD -d ${dest_ip}/32 -p ${DEST_PROTO} --dport ${DEST_PORT} -j DROP
-            iptables -t nat -I PREROUTING -p ${DEST_PROTO} --dport ${SRC_PORT} -j DNAT --to ${dest_ip}:${DEST_PORT}
-            iptables -t nat -I POSTROUTING -d ${dest_ip}/32 -p ${DEST_PROTO} -j MASQUERADE
+            if [ $(cat /proc/sys/net/ipv4/ip_forward) == 1 ]; then
+                iptables -t filter -A FORWARD -d ${dest_ip}/32 -p ${DEST_PROTO} --dport ${DEST_PORT} -j DROP
+                iptables -t nat -I PREROUTING -p ${DEST_PROTO} --dport ${SRC_PORT} -j DNAT --to ${dest_ip}:${DEST_PORT}
+                iptables -t nat -I POSTROUTING -d ${dest_ip}/32 -p ${DEST_PROTO} -j MASQUERADE
+            fi
         fi
     done
 }
