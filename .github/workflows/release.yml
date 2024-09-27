@@ -1,11 +1,44 @@
 name: "Release"
 
+permissions:
+  contents: read  
+
 on:
-  workflow_dispatch:
+  release:
+    types: [published]
+
+env:
+  GITHUB_ACTION_TAG: ${{ github.ref_name }}
 
 jobs:
   release:
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v3
+        
+    - name: "Read secrets"
+      uses: rancher-eio/read-vault-secrets@main
+      with:
+        secrets: |
+          secret/data/github/repo/${{ github.repository }}/dockerhub/${{ github.repository_owner }}/credentials username | DOCKER_USERNAME ;
+          secret/data/github/repo/${{ github.repository }}/dockerhub/${{ github.repository_owner }}/credentials password | DOCKER_PASSWORD
+
+    - name: Login to Container Registry
+      uses: docker/login-action@v3
+      with:
+        username: ${{ env.DOCKER_USERNAME }}
+        password: ${{ env.DOCKER_PASSWORD }}
+
+    - name: Build and push container image
+      uses: rancher/ecm-distro-tools/actions/publish-image@master
+      with:
+        image: klipper-lb
+        tag: ${{ github.event.release.tag_name }}
+        public-repo: rancher
+        public-username: ${{ env.DOCKER_USERNAME }}
+        public-password: ${{ env.DOCKER_PASSWORD }}
+        push-to-prime: false
