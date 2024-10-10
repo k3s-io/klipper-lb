@@ -33,6 +33,7 @@ ci:
 .PHONY: push-image
 push-image:
 	docker buildx build \
+		$(IID_FILE_FLAG) \
 		--sbom=true \
 		--attest type=provenance,mode=max \
 		--platform=$(TARGET_PLATFORMS) \
