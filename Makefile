@@ -1,12 +1,4 @@
 UNAME_M = $(shell uname -m)
-ARCH=
-ifeq ($(UNAME_M), x86_64)
-	ARCH=amd64
-else ifeq ($(UNAME_M), aarch64)
-	ARCH=arm64
-else 
-	ARCH=$(UNAME_M)
-endif
 
 ifndef TARGET_PLATFORMS
 	ifeq ($(UNAME_M), x86_64)
@@ -20,7 +12,7 @@ endif
 
 ORG ?= rancher
 TAG ?= ${GITHUB_ACTION_TAG}
-BUILDDATE ?= $(date +%Y%m%d)
+BUILDDATE ?= $(shell date +%Y%m%d)
 
 IMAGE ?= $(ORG)/klipper-lb:$(TAG)
 
@@ -39,13 +31,11 @@ push-image:
 		--platform=$(TARGET_PLATFORMS) \
 		--build-arg BUILDDATE=$(BUILDDATE) \
 		--tag $(IMAGE) \
-		--tag $(IMAGE)-$(ARCH) \
 		--push \
 		.
 
 PHONY: log
 log:
-	@echo "ARCH=$(ARCH)"
 	@echo "TAG=$(TAG:$(BUILD_META)=)"
 	@echo "ORG=$(ORG)"
 	@echo "IMAGE=$(IMAGE)"
