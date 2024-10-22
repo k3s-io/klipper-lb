@@ -138,6 +138,52 @@ volumes:
 
 ---
 kind: pipeline
+name: riscv64
+type: docker
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build
+  image: docker:25.0-git
+  environment:
+    ARCH: "riscv64"
+  commands:
+  - apk add make
+  - git config --global --add safe.directory /drone/src
+  - make
+  volumes:
+  - name: docker
+    path: /var/run/docker.sock
+
+- name: docker-publish
+  image: plugins/docker
+  settings:
+    dockerfile: Dockerfile
+    password:
+      from_secret: docker_password
+    repo: "rancher/klipper-lb"
+    tag: "${DRONE_TAG}-riscv64"
+    username:
+      from_secret: docker_username
+  when:
+    instance:
+    - drone-publish.k3s.io
+    ref:
+    - refs/head/master
+    - refs/tags/*
+    event:
+    - tag
+
+volumes:
+- name: docker
+  host:
+    path: /var/run/docker.sock
+
+---
+kind: pipeline
 name: manifest
 type: docker
 
@@ -157,6 +203,7 @@ steps:
       - linux/amd64
       - linux/arm64
       - linux/arm
+      - linux/riscv64
     target: "rancher/klipper-lb:${DRONE_TAG}"
     template: "rancher/klipper-lb:${DRONE_TAG}-ARCH"
   when:
@@ -172,3 +219,4 @@ depends_on:
 - amd64
 - arm64
 - arm
+- riscv64
