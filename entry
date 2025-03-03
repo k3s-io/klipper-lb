@@ -3,7 +3,7 @@ set -ex
 
 trap exit TERM INT
 
-BIN_DIR="/sbin"
+BIN_DIR="/usr/sbin"
 
 info() {
     { set +x; } 2> /dev/null
