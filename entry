@@ -45,13 +45,13 @@ check_iptables_mode() {
 
 set_nft() {
     for i in iptables iptables-save iptables-restore ip6tables; do 
-        ln -sf /sbin/xtables-nft-multi "$BIN_DIR/$i";
+        ln -sf xtables-nft-multi "$BIN_DIR/$i";
     done
 }
 
 set_legacy() {
     for i in iptables iptables-save iptables-restore ip6tables; do 
-        ln -sf /sbin/xtables-legacy-multi "$BIN_DIR/$i";
+        ln -sf xtables-legacy-multi "$BIN_DIR/$i";
     done
 }
 
