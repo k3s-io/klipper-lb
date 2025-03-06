@@ -1,0 +1,75 @@
+name: release
+
+on:
+  release:
+    types:
+      - created
+
+jobs:
+  release:
+    runs-on: ubuntu-22.04
+    
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # needed for the Vault authentication
+      
+    steps:
+      - name: "Read Vault secrets"
+        if: github.repository_owner == 'k3s-io'
+        uses: rancher-eio/read-vault-secrets@main
+        with:
+          secrets: |
+            secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
+            secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials password | DOCKER_TOKEN ;
+    
+      - name: Login to DockerHub with Rancher Secrets
+        if: github.repository_owner == 'k3s-io'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_TOKEN }}
+
+      - name: Login to DockerHub with GHA Secrets
+        if: github.repository_owner != 'k3s-io'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push (k3s-io)
+        if: github.repository_owner == 'k3s-io'
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/klipper-lb:latest
+            ${{ env.DOCKER_USERNAME }}/klipper-lb:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/klipper-lb:latest
+            ghcr.io/${{ github.repository_owner }}/klipper-lb:${{ github.ref_name }}
+
+      - name: Build and push (forks)
+        if: github.repository_owner != 'k3s-io'
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/klipper-lb:latest
+            ${{ secrets.DOCKER_USERNAME }}/klipper-lb:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/klipper-lb:latest
+            ghcr.io/${{ github.repository_owner }}/klipper-lb:${{ github.ref_name }}
