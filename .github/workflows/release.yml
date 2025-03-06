@@ -57,8 +57,8 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
           tags: |
-            ${{ env.DOCKER_USERNAME }}/klipper-lb:latest
-            ${{ env.DOCKER_USERNAME }}/klipper-lb:${{ github.ref_name }}
+            rancher/klipper-lb:latest
+            rancher/klipper-lb:${{ github.ref_name }}
             ghcr.io/${{ github.repository_owner }}/klipper-lb:latest
             ghcr.io/${{ github.repository_owner }}/klipper-lb:${{ github.ref_name }}
 
