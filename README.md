@@ -14,14 +14,319 @@ will stay in pending.
 
 ## Configuration
 
-The load balancer behavior can be configured using environment variables:
+The load balancer behavior is configured via environment variables that are automatically set by the K3s ServiceLB controller when creating DaemonSet pods.
 
-- `SRC_IPS`: Comma-separated list of external IPs or loadBalancerIP to listen on. If set, the load balancer will only accept traffic destined for these specific IPs. If not set, the load balancer will listen on all interfaces (default behavior).
-- `SRC_RANGES`: Comma-separated list of source IP ranges to accept traffic from (implements `.spec.loadBalancerSourceRanges`).
-- `DEST_IPS`: Comma-separated list of destination cluster IPs to forward traffic to.
-- `DEST_PROTO`: Protocol (tcp/udp).
-- `DEST_PORT`: Destination port on the cluster IP.
-- `SRC_PORT`: Source port to listen on.
+### Environment Variables
+
+| Variable | Description | K3s Source | Example |
+|----------|-------------|------------|---------|
+| `SRC_IPS` | Comma-separated list of IPs to listen on. If set, klipper-lb only accepts traffic destined for these specific IPs (using `-d` in iptables). If not set, listens on all interfaces. | `service.spec.externalIPs`, `service.spec.loadBalancerIP`, or `service.status.loadBalancer.ingress` | `192.168.1.100,192.168.1.101` |
+| `SRC_PORT` | Source port to listen on | `service.spec.ports[].port` | `80` |
+| `SRC_RANGES` | Comma-separated list of source IP ranges allowed to connect (implements `.spec.loadBalancerSourceRanges`). Uses `-s` in iptables to filter source addresses. | `service.spec.loadBalancerSourceRanges` | `10.0.0.0/8,192.168.0.0/16` |
+| `DEST_IPS` | Destination IPs to forward traffic to (DNAT target). Either cluster IPs or node IPs depending on `externalTrafficPolicy`. | `service.spec.clusterIPs` (Cluster mode) or `status.hostIPs` (Local mode) | `10.43.0.50` |
+| `DEST_PORT` | Destination port to forward traffic to | `service.spec.ports[].port` (Cluster mode) or `service.spec.ports[].nodePort` (Local mode) | `8080` |
+| `DEST_PROTO` | Protocol for forwarding | `service.spec.ports[].protocol` | `TCP` or `UDP` |
+
+### How Environment Variables are Set
+
+These variables are **not** set manually. They are automatically populated by the K3s ServiceLB controller when it creates the DaemonSet for your LoadBalancer service.
+
+**Example DaemonSet Pod Env:**
+```yaml
+env:
+  - name: SRC_IPS
+    value: "192.168.1.100"
+  - name: SRC_PORT
+    value: "80"
+  - name: SRC_RANGES
+    value: "0.0.0.0/0"
+  - name: DEST_PROTO
+    value: "TCP"
+  - name: DEST_PORT
+    value: "8080"
+  - name: DEST_IPS
+    value: "10.43.0.50"
+```
+
+**Resulting iptables rule:**
+```bash
+iptables -t nat -A PREROUTING -d 192.168.1.100 -s 0.0.0.0/0 -p TCP --dport 80 \
+  -j DNAT --to-destination 10.43.0.50:8080
+```
+
+## Service Configuration
+
+### Overview
+
+There are three ways to configure a LoadBalancer service with klipper-lb, each with different behavior regarding which IPs the load balancer listens on.
+
+### Option 1: Using `externalIPs` (Recommended with SRC_IPS)
+
+Specify **multiple external IPs** that should be used for the service. This is the key difference from `loadBalancerIP` which only accepts a single IP.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  type: LoadBalancer
+  externalIPs:
+    - 192.168.1.100
+    - 192.168.1.101
+    - 192.168.1.102
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: my-app
+```
+
+**What happens:**
+- ✅ **With SRC_IPS support**: klipper-lb listens **only** on 192.168.1.100:80, 192.168.1.101:80, and 192.168.1.102:80
+- ❌ **Without SRC_IPS** (current upstream): klipper-lb listens on **all IPs** on port 80 (security issue)
+- The specified IPs must already exist on the nodes or be routed to them
+- Traffic to other IPs on port 80 is ignored (with SRC_IPS support)
+- You can specify a **single IP** or **multiple IPs** (unlike `loadBalancerIP`)
+
+**Use cases:**
+- You have specific external IPs assigned to your nodes
+- You're using a VIP system (Keepalived) and want failover IPs
+- You want to expose services on specific IPs only
+- Multiple services on different IPs
+- **Load balancing across multiple IPs** (e.g., DNS round-robin)
+
+**Status field:**
+```yaml
+status:
+  loadBalancer:
+    ingress:
+    - ip: <node1-external-ip>
+    - ip: <node2-external-ip>
+    - ip: <node3-external-ip>
+```
+
+**iptables rules (with SRC_IPS):**
+```bash
+# Each node gets these rules (one per externalIP):
+iptables -t nat -A PREROUTING -d 192.168.1.100 -p TCP --dport 80 -j DNAT --to <cluster-ip>:8080
+iptables -t nat -A PREROUTING -d 192.168.1.101 -p TCP --dport 80 -j DNAT --to <cluster-ip>:8080
+iptables -t nat -A PREROUTING -d 192.168.1.102 -p TCP --dport 80 -j DNAT --to <cluster-ip>:8080
+```
+
+### Option 2: Using `loadBalancerIP` (Deprecated in k8s but Supported)
+
+Specify a single IP for the load balancer. This field is deprecated in Kubernetes but still supported.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 192.168.1.100
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: my-app
+```
+
+**What happens:**
+- ✅ **With SRC_IPS support**: klipper-lb listens **only** on 192.168.1.100:80
+- ❌ **Without SRC_IPS**: klipper-lb listens on **all IPs** on port 80
+- Same behavior as `externalIPs` with a single IP
+- The IP must already exist on the nodes or be routed to them
+
+**Use cases:**
+- Legacy configurations using the old Kubernetes API
+- Simple single-IP deployments
+- Migration from cloud providers that used this field
+
+**Note:** Prefer using `externalIPs` for new deployments as `loadBalancerIP` is deprecated.
+
+**Status field:**
+```yaml
+status:
+  loadBalancer:
+    ingress:
+    - ip: <node1-external-ip>
+    - ip: <node2-external-ip>
+    - ip: <node3-external-ip>
+```
+
+**iptables rules (with SRC_IPS):**
+```bash
+iptables -t nat -A PREROUTING -d 192.168.1.100 -p TCP --dport 80 -j DNAT --to <cluster-ip>:8080
+```
+
+### Option 3: Default (No IPs specified)
+
+Create a LoadBalancer service without specifying any external IPs.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: my-app
+```
+
+**What happens:**
+- klipper-lb listens on **all interfaces** on port 80 (both with and without SRC_IPS support)
+- No `-d <IP>` filter in iptables rules
+- Traffic to ANY IP on port 80 will be forwarded to the service
+- The service is accessible via all node IPs
+
+**Use cases:**
+- Simple deployments where you want the service accessible on all node IPs
+- Development/testing environments
+- When you don't care which IP is used to access the service
+- Default K3s behavior
+
+**Status field:**
+```yaml
+status:
+  loadBalancer:
+    ingress:
+    - ip: <node1-external-ip>
+    - ip: <node2-external-ip>
+    - ip: <node3-external-ip>
+```
+
+**iptables rules:**
+```bash
+# No -d flag, matches all destination IPs
+iptables -t nat -A PREROUTING -p TCP --dport 80 -j DNAT --to <cluster-ip>:8080
+```
+
+### Comparison Table
+
+| Configuration | IPs Supported | SRC_IPS ENV | iptables Filter | Security                           | Use Case                          |
+|---------------|---------------|-------------|-----------------|------------------------------------|-----------------------------------|
+| `externalIPs: [192.168.1.100, 192.168.1.101, 192.168.1.102]` | **Multiple** ✅ | `192.168.1.100,192.168.1.101,192.168.1.102` | `-d <IP>` (one rule per IP) | ✅ Listen only on the specified ips | Multiple IPs                      |
+| `loadBalancerIP: 192.168.1.100` | **Single only** | `192.168.1.100` | `-d 192.168.1.100` | ✅ Listen only on the specified ip  | K8s Legacy single IP (deprecated) |
+| No IPs specified | N/A | (not set) | No `-d` flag (matches **any** IP) | ⚠️ Listen on all ips | k3s Legacy, simple                |
+
+
+### Combined Configuration
+
+You can combine multiple options, though this is uncommon:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 192.168.1.100
+  externalIPs:
+    - 192.168.1.101
+    - 192.168.1.102
+  ports:
+    - port: 80
+      targetPort: 8080
+```
+
+**What happens:**
+- All IPs are collected: `[192.168.1.100, 192.168.1.101, 192.168.1.102]`
+- klipper-lb listens on all three IPs
+- Useful for migration scenarios or complex setups
+
+### IP Requirements
+
+**Important:** The IPs you specify must be reachable on the nodes. klipper-lb does **not** assign IPs; it only listens on them.
+
+**How to configure IPs on nodes:**
+
+1. **Manual assignment** (loopback):
+   ```bash
+   # On each node
+   ip addr add 192.168.1.100/32 dev lo
+   ```
+
+2. **Manual assignment** (interface):
+   ```bash
+   # On each node
+   ip addr add 192.168.1.100/24 dev eth0
+   ```
+
+3. **VIP with Keepalived** (VRRP):
+   - uses VRRP protocol
+   - IP is active on one node (master), standby on others
+
+
+4. **No configuration** (default):
+   - Don't specify any IPs
+   - Service accessible via node IPs automatically
+
+### Example Workflows
+
+#### Workflow 1: Multiple Services, Different IPs
+
+```yaml
+# Service 1 - Web on .100
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  type: LoadBalancer
+  externalIPs:
+    - 192.168.1.100
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: web
+---
+# Service 2 - API on .101
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+spec:
+  type: LoadBalancer
+  externalIPs:
+    - 192.168.1.101
+  ports:
+    - port: 80
+      targetPort: 3000
+  selector:
+    app: api
+```
+
+Result: Web accessible on 192.168.1.100:80, API on 192.168.1.101:80 (same port, different IPs)
+
+#### Workflow 2: Simple Default
+
+```yaml
+# No IP configuration needed
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: web
+```
+
+Result: Accessible on all node IPs on port 80
 
 ## Repository Structure
 
@@ -90,35 +395,6 @@ The **ServiceLB controller** lives in the K3s repository at [`pkg/cloudprovider/
 │  Runs as: DaemonSet pod on each node                       │
 └─────────────────────────────────────────────────────────────┘
 ```
-
-### Development Workflow
-
-**To modify load balancer behavior (iptables rules):**
-- Edit files in **this repository** (klipper-lb)
-- Build new Docker image
-- Update K3s to use new image version
-
-**To modify controller behavior (DaemonSet creation, ENV vars):**
-- Edit files in **K3s repository** (`pkg/cloudprovider/`)
-- Rebuild K3s binary
-- May require new klipper-lb image if new ENV vars are added
-
-### Example: Adding SRC_IPS Support
-
-This demonstrates the two-repository workflow:
-
-**Step 1: klipper-lb (this repo)**
-- Modify `entry` script to read `SRC_IPS` environment variable
-- Add `-d <IP>` flag to iptables rules when `SRC_IPS` is set
-- Build and publish new image: `rancher/klipper-lb:v0.5.0`
-
-**Step 2: K3s repository**
-- Modify `pkg/cloudprovider/servicelb.go`
-- Update `newDaemonSet()` to set `SRC_IPS` env var from `service.spec.externalIPs`
-- Update default image to `rancher/klipper-lb:v0.5.0`
-- Rebuild K3s
-
-Both changes are needed for the feature to work end-to-end.
 
 ## Architecture
 
@@ -335,6 +611,17 @@ This architecture is **robust** because:
 ## Building
 
 `make`
+
+## References
+
+### Official Documentation
+- [K3s ServiceLB Documentation](https://docs.k3s.io/networking/networking-services) - Official K3s documentation on ServiceLB
+- [Kubernetes Services](https://kubernetes.io/docs/concepts/services-networking/service/) - Kubernetes Service concepts
+
+### Source Code
+- [klipper-lb Repository](https://github.com/k3s-io/klipper-lb) - This repository (load balancer runtime)
+- [K3s Repository](https://github.com/k3s-io/k3s) - K3s main repository
+- [K3s ServiceLB Controller](https://github.com/k3s-io/k3s/tree/master/pkg/cloudprovider) - Controller source code
 
 ## License
 Copyright (c) 2024 [K3s Authors](http://github.com/k3s-io)
