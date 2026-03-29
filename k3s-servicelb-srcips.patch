@@ -1,0 +1,51 @@
+--- a/pkg/cloudprovider/servicelb.go
++++ b/pkg/cloudprovider/servicelb.go
+@@ -432,6 +432,7 @@ func (k *k3s) newDaemonSet(svc *core.Service) (*apps.DaemonSet, error) {
+ 	name := generateName(svc)
+ 	oneInt := intstr.FromInt(1)
+ 	priorityClassName := k.getPriorityClassName(svc)
+ 	localTraffic := servicehelper.RequestsOnlyLocalTraffic(svc)
+ 	sourceRangesSet, err := servicehelper.GetLoadBalancerSourceRanges(svc)
+ 	if err != nil {
+@@ -439,6 +440,24 @@ func (k *k3s) newDaemonSet(svc *core.Service) (*apps.DaemonSet, error) {
+ 	}
+ 	sourceRanges := strings.Join(sourceRangesSet.StringSlice(), ",")
+ 	securityContext := &core.PodSecurityContext{}
++
++	// Collect source IPs from externalIPs, loadBalancerIP, and status ingress IPs
++	var srcIPs []string
++
++	// Add externalIPs from service spec
++	if len(svc.Spec.ExternalIPs) > 0 {
++		srcIPs = append(srcIPs, svc.Spec.ExternalIPs...)
++	}
++
++	// Add deprecated loadBalancerIP if set
++	if svc.Spec.LoadBalancerIP != "" {
++		srcIPs = append(srcIPs, svc.Spec.LoadBalancerIP)
++	}
++
++	// Add IPs from status.loadBalancer.ingress
++	for _, ingress := range svc.Status.LoadBalancer.Ingress {
++		if ingress.IP != "" {
++			srcIPs = append(srcIPs, ingress.IP)
++		}
++	}
+
+ 	for _, ipFamily := range svc.Spec.IPFamilies {
+ 		switch ipFamily {
+@@ -539,6 +558,14 @@ func (k *k3s) newDaemonSet(svc *core.Service) (*apps.DaemonSet, error) {
+ 				Value: string(port.Protocol),
+ 			},
+ 		}
++
++		// Add SRC_IPS environment variable if any source IPs are configured
++		if len(srcIPs) > 0 {
++			container.Env = append(container.Env, core.EnvVar{
++				Name:  "SRC_IPS",
++				Value: strings.Join(srcIPs, ","),
++			})
++		}
+
+ 		if localTraffic {
+ 			container.Env = append(container.Env,

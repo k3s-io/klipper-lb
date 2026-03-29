@@ -68,13 +68,37 @@ start_proxy() {
         if echo ${dest_ip} | grep -Eq ":"; then
             if [ $(cat /proc/sys/net/ipv6/conf/all/forwarding) == 1 ]; then
                 ip6tables -t filter -A FORWARD -d ${dest_ip}/128 -p ${DEST_PROTO} --dport ${DEST_PORT} -j DROP
-                ip6tables -t nat -I PREROUTING -p ${DEST_PROTO} --dport ${SRC_PORT} -j DNAT --to [${dest_ip}]:${DEST_PORT}
+
+                # If SRC_IPS is set, only listen on specified IPs
+                if [ -n "${SRC_IPS}" ]; then
+                    for src_ip in ${SRC_IPS//,/ }; do
+                        if echo ${src_ip} | grep -Eq ":"; then
+                            ip6tables -t nat -I PREROUTING -d ${src_ip} -p ${DEST_PROTO} --dport ${SRC_PORT} -j DNAT --to [${dest_ip}]:${DEST_PORT}
+                        fi
+                    done
+                else
+                    # Default behavior: listen on all interfaces
+                    ip6tables -t nat -I PREROUTING -p ${DEST_PROTO} --dport ${SRC_PORT} -j DNAT --to [${dest_ip}]:${DEST_PORT}
+                fi
+
                 ip6tables -t nat -I POSTROUTING -d ${dest_ip}/128 -p ${DEST_PROTO} -j MASQUERADE
             fi
         else
             if [ $(cat /proc/sys/net/ipv4/ip_forward) == 1 ]; then
                 iptables -t filter -A FORWARD -d ${dest_ip}/32 -p ${DEST_PROTO} --dport ${DEST_PORT} -j DROP
-                iptables -t nat -I PREROUTING -p ${DEST_PROTO} --dport ${SRC_PORT} -j DNAT --to ${dest_ip}:${DEST_PORT}
+
+                # If SRC_IPS is set, only listen on specified IPs
+                if [ -n "${SRC_IPS}" ]; then
+                    for src_ip in ${SRC_IPS//,/ }; do
+                        if ! echo ${src_ip} | grep -Eq ":"; then
+                            iptables -t nat -I PREROUTING -d ${src_ip} -p ${DEST_PROTO} --dport ${SRC_PORT} -j DNAT --to ${dest_ip}:${DEST_PORT}
+                        fi
+                    done
+                else
+                    # Default behavior: listen on all interfaces
+                    iptables -t nat -I PREROUTING -p ${DEST_PROTO} --dport ${SRC_PORT} -j DNAT --to ${dest_ip}:${DEST_PORT}
+                fi
+
                 iptables -t nat -I POSTROUTING -d ${dest_ip}/32 -p ${DEST_PROTO} -j MASQUERADE
             fi
         fi
