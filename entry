@@ -11,36 +11,33 @@ info() {
     set -x
 }
 
-fatal() {
-    { set +x; } 2> /dev/null
-    echo '[ERROR] ' "$@" >&2
-    set -x
-    exit 1
-}
-
 check_iptables_mode() {
     set +e
-    lsmod | grep -qF nf_tables 2> /dev/null
-    if [ $? = 0 ]; then
+    # In kubernetes 1.17 and later, kubelet will have created at least
+	# one chain in the "mangle" table (either "KUBE-IPTABLES-HINT" or
+	# "KUBE-KUBELET-CANARY"), so check that first, against
+	# iptables-nft, because we can check that more efficiently and
+	# it's more common these days.
+    kubelet_chain='^:(KUBE-IPTABLES-HINT|KUBE-KUBELET-CANARY)'
+
+    # nft is cheap to probe with `-t mangle`; legacy is saved without `-t` since
+    # `iptables-legacy-save -t mangle` would create that table if it were missing.
+    if { xtables-nft-multi iptables-save -t mangle; xtables-nft-multi ip6tables-save -t mangle; } 2> /dev/null | grep -Eq "${kubelet_chain}"; then
         mode=nft
-    else 
+    elif { xtables-legacy-multi iptables-save; xtables-legacy-multi ip6tables-save; } 2> /dev/null | grep -Eq "${kubelet_chain}"; then
         mode=legacy
+    else
+        mode=nft
     fi
     set -e
 
-    case "$mode" in
-        nft)
-            info "nft mode detected"
-            set_nft
-            ;;
-        legacy)
-            info "legacy mode detected"
-            set_legacy
-            ;;
-        *)
-            fatal "invalid iptables mode"
-            ;;
-    esac
+    if [ "$mode" = legacy ]; then
+        info "legacy mode detected"
+        set_legacy
+    else
+        info "nft mode detected"
+        set_nft
+    fi
 }
 
 set_nft() {
